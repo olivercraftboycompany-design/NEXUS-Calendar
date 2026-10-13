@@ -376,13 +376,13 @@ function openEditor(ev, occKey) {
   </form>`, sh => {
     let cat = e.cat; const rem = new Set(e.rem);
     sh.querySelector('#fCats').addEventListener('click', ev2 => { const b = ev2.target.closest('[data-cat]'); if (!b) return; cat = b.dataset.cat; sh.querySelectorAll('[data-cat]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); sh.querySelector('label[for=fDate]').textContent = cat === 'homework' ? 'Due date' : 'Date'; });
-    const ad = sh.querySelector('#fAllDay'); ad.onclick = () => { const v = ad.getAttribute('aria-checked') !== 'true'; ad.setAttribute('aria-checked', String(v)); sh.querySelector('#fTimes').hidden = v; };
+    const ad = sh.querySelector('#fAllDay'); ad.onclick = () => { const v = ad.getAttribute('aria-checked') !== 'true'; ad.setAttribute('aria-checked', String(v)); sh.querySelector('#fTimes').hidden = v; if (sh.querySelector('#fRem')) sh.querySelector('#fRem').dispatchEvent(new CustomEvent('note')); };
     const st = sh.querySelector('#fStart'), en = sh.querySelector('#fEnd'); let lastS = toMin(st.value);
     st.addEventListener('change', () => { const s = toMin(st.value), d = (toMin(en.value) ?? s + 60) - (lastS ?? s); if (s != null) { en.value = fromMin(Math.min(s + Math.max(d, 15), 1439)); lastS = s; } });
     const remBox = sh.querySelector('#fRem');
     if (remBox) {
-      const note = () => { const n = sh.querySelector('#fRemNote'); n.textContent = rem.size ? (window.NXRem.enabled() ? 'Reminders are on for this phone.' : 'Saving turns on notifications for this phone (Chrome will ask).') : ''; };
-      remBox.addEventListener('click', ev2 => { const b = ev2.target.closest('[data-rem]'); if (!b) return; const m = +b.dataset.rem; rem.has(m) ? rem.delete(m) : rem.add(m); b.setAttribute('aria-pressed', String(rem.has(m))); note(); }); note();
+      const note = () => { const n = sh.querySelector('#fRemNote'); const ad2 = sh.querySelector('#fAllDay').getAttribute('aria-checked') === 'true'; n.textContent = rem.size ? (window.NXRem.enabled() ? 'Reminders are on for this phone.' : 'Saving turns on notifications for this phone (Chrome will ask).') + (ad2 ? ' All-day events count from 8 AM.' : '') : ''; };
+      remBox.addEventListener('note', () => note()); remBox.addEventListener('click', ev2 => { const b = ev2.target.closest('[data-rem]'); if (!b) return; const m = +b.dataset.rem; rem.has(m) ? rem.delete(m) : rem.add(m); b.setAttribute('aria-pressed', String(rem.has(m))); note(); }); note();
     }
     if (isNew && !ev) setTimeout(() => sh.querySelector('#fTitle').focus(), 50);
     sh.querySelector('#evForm').onsubmit = async ev2 => {

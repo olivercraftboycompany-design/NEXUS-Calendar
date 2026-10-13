@@ -1,7 +1,8 @@
 /* NEXUS Calendar service worker. Bump VERSION whenever a file changes so phones get the update. */
-const VERSION = 'nexcal-v1';
+const VERSION = 'nexcal-v2';
+importScripts('push-box.js');
 const SHELL = [
-  './', './index.html', './app.js', './style.css', './manifest.json',
+  './', './index.html', './app.js', './reminders.js', './push-box.js', './style.css', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png',
   './icons/favicon-32.png', './icons/badge-96.png', './icons/shortcut-add.png', './icons/shortcut-today.png'
 ];
@@ -51,4 +52,47 @@ self.addEventListener('fetch', e => {
   if (url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith(new URL('./', self.location).pathname)) return;
   e.respondWith(networkFirst(req));
+});
+
+/* ---------- reminder notifications ---------- */
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
+  const title = d.title || 'NEXUS Calendar';
+  const opts = {
+    body: d.body || '', icon: 'icons/icon-192.png', badge: 'icons/badge-96.png',
+    tag: d.tag || 'nxcal', renotify: true, vibrate: [120, 60, 120], timestamp: d.ts || Date.now(),
+    data: { url: d.url || './' }
+  };
+  e.waitUntil((async () => {
+    await self.registration.showNotification(title, opts);
+    for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) c.postMessage({ type: 'nxcal-push', title, body: opts.body, tag: opts.tag });
+  })());
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const target = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil((async () => {
+    for (const w of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+      if (w.url.startsWith(self.registration.scope)) {
+        await w.focus();
+        if (w.url !== target && 'navigate' in w) { try { await w.navigate(target); } catch {} }
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
+});
+
+// If Chrome rotates the push subscription, re-subscribe and tell the sender to move the reminders over.
+self.addEventListener('pushsubscriptionchange', e => {
+  e.waitUntil((async () => {
+    const res = await (await caches.open('nexcal-config')).match('./nexcal-config.json');
+    if (!res) return;
+    const cfg = await res.json(); if (!cfg.on) return;
+    const sub = e.newSubscription || await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: self.NXCalPush.b64u.dec(self.NXCalPush.VAPID_PUBLIC) });
+    await self.NXCalPush.post({ type: 'resub', v: Date.now(), old: (e.oldSubscription && e.oldSubscription.endpoint) || cfg.endpoint, sub: sub.toJSON(), tz: cfg.tz });
+    await (await caches.open('nexcal-config')).put('./nexcal-config.json', new Response(JSON.stringify({ ...cfg, endpoint: sub.endpoint })));
+  })());
 });
