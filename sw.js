@@ -1,5 +1,5 @@
 /* NEXUS Calendar service worker. Bump VERSION whenever a file changes so phones get the update. */
-const VERSION = 'nexcal-v2';
+const VERSION = 'nexcal-v3';
 importScripts('push-box.js');
 const SHELL = [
   './', './index.html', './app.js', './reminders.js', './push-box.js', './style.css', './manifest.json',
